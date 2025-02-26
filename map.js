@@ -18,35 +18,42 @@ function minutesSinceMidnight(date) {
   return date.getHours() * 60 + date.getMinutes();
 }
 
-// ✅ Function to filter trips based on time
-function filterTripsbyTime(trips, timeFilter) {
-  return timeFilter === -1 
-    ? trips // If no filter is applied (-1), return all trips
-    : trips.filter((trip) => {
-        // Convert trip start and end times to minutes since midnight
-        const startedMinutes = minutesSinceMidnight(trip.started_at);
-        const endedMinutes = minutesSinceMidnight(trip.ended_at);
-        
-        // Include trips that started or ended within 60 minutes of the selected time
-        return (
-          Math.abs(startedMinutes - timeFilter) <= 60 ||
-          Math.abs(endedMinutes - timeFilter) <= 60
-        );
-    });
+// ✅ Create time buckets for efficient filtering (1440 minutes per day)
+let departuresByMinute = Array.from({ length: 1440 }, () => []);
+let arrivalsByMinute = Array.from({ length: 1440 }, () => []);
+
+// ✅ Efficient filtering using pre-bucketed trips
+function filterByMinute(tripsByMinute, minute) {
+  if (minute === -1) {
+    return tripsByMinute.flat(); // No filtering, return all trips
+  }
+
+  // Normalize both min and max minutes to the valid range [0, 1439]
+  let minMinute = (minute - 60 + 1440) % 1440;
+  let maxMinute = (minute + 60) % 1440;
+
+  // Handle time filtering across midnight
+  if (minMinute > maxMinute) {
+    let beforeMidnight = tripsByMinute.slice(minMinute);
+    let afterMidnight = tripsByMinute.slice(0, maxMinute + 1);
+    return beforeMidnight.concat(afterMidnight).flat();
+  } else {
+    return tripsByMinute.slice(minMinute, maxMinute + 1).flat();
+  }
 }
 
-// ✅ Function to compute station traffic
-function computeStationTraffic(stations, trips) {
-  // Compute departures
+// ✅ Function to compute station traffic using prefiltered time buckets
+function computeStationTraffic(stations, timeFilter = -1) {
+  // Compute departures using efficient filtering
   const departures = d3.rollup(
-    trips, 
+    filterByMinute(departuresByMinute, timeFilter), 
     (v) => v.length, 
     (d) => d.start_station_id
   );
 
-  // Compute arrivals
+  // Compute arrivals using efficient filtering
   const arrivals = d3.rollup(
-    trips,
+    filterByMinute(arrivalsByMinute, timeFilter),
     (v) => v.length,
     (d) => d.end_station_id
   );
@@ -158,12 +165,21 @@ map.on("load", async () => {
   try {
     jsonData = await d3.json(stationUrl);
     
-    // ✅ Parse date strings to Date objects on load
+    // ✅ Parse date strings to Date objects on load and populate time buckets
     trips = await d3.csv(
       trafficUrl,
       (trip) => {
         trip.started_at = new Date(trip.started_at);
         trip.ended_at = new Date(trip.ended_at);
+        
+        // Add trips to appropriate minute buckets
+        const startedMinutes = minutesSinceMidnight(trip.started_at);
+        const endedMinutes = minutesSinceMidnight(trip.ended_at);
+        
+        // Store trips in their respective time buckets
+        departuresByMinute[startedMinutes].push(trip);
+        arrivalsByMinute[endedMinutes].push(trip);
+        
         return trip;
       }
     );
@@ -179,8 +195,11 @@ map.on("load", async () => {
     (d) => d.lon && d.lat && !isNaN(d.lon) && !isNaN(d.lat)
   );
 
-  // ✅ Compute station traffic using our new function
-  let stations = computeStationTraffic(validStations, trips);
+  // ✅ Create a quantize scale for traffic flow (Step 6.1)
+  let stationFlow = d3.scaleQuantize().domain([0, 1]).range([0, 0.5, 1]);
+
+  // ✅ Compute station traffic using our optimized function (no time filter initially)
+  let stations = computeStationTraffic(validStations);
 
   // ✅ Define a square root scale for circle size
   const radiusScale = d3
@@ -195,11 +214,11 @@ map.on("load", async () => {
     .enter()
     .append("circle")
     .attr("r", (d) => radiusScale(d.totalTraffic))
-    .attr("fill", "steelblue")
     .attr("stroke", "white")
     .attr("stroke-width", 1)
     .attr("fill-opacity", 0.6)
     .attr("pointer-events", "auto")
+    .style("--departure-ratio", d => stationFlow(d.departures / d.totalTraffic))
     .on("mouseover", function (event, d) {
       tooltip
         .style("visibility", "visible")
@@ -223,13 +242,10 @@ map.on("load", async () => {
       .attr("cy", (d) => getCoords(d).cy);
   }
 
-  // ✅ Function to update scatter plot based on time filter
+  // ✅ Function to update scatter plot based on time filter (optimized)
   function updateScatterPlot(timeFilter) {
-    // Get only the trips that match the selected time filter
-    const filteredTrips = filterTripsbyTime(trips, timeFilter);
-    
-    // Recompute station traffic based on the filtered trips
-    const filteredStations = computeStationTraffic(validStations, filteredTrips);
+    // Recompute station traffic using the time filter directly
+    const filteredStations = computeStationTraffic(validStations, timeFilter);
     
     // Adjust radius scale based on filtering
     timeFilter === -1 
@@ -240,7 +256,8 @@ map.on("load", async () => {
     circles
       .data(filteredStations, (d) => d.short_name) // Use station short_name as key
       .join('circle') // Ensure the data is bound correctly
-      .attr('r', (d) => radiusScale(d.totalTraffic)); // Update circle sizes
+      .attr('r', (d) => radiusScale(d.totalTraffic)) // Update circle sizes
+      .style('--departure-ratio', (d) => stationFlow(d.departures / d.totalTraffic));
   }
 
   // ✅ Function to update displayed time and filter value

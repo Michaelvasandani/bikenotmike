@@ -8,7 +8,7 @@ body {
     margin: auto;
     padding: 1em;
   }
-
+  
   html, body {
     margin: 0;
     padding: 5;
@@ -18,6 +18,21 @@ body {
     justify-content: center; /* Center horizontally */
     align-items: center;     /* Center vertically */
   }
+  
+  /* Shared color variables for both circles and legend */
+  :root {
+    --color-departures: steelblue;
+    --color-arrivals: darkorange;
+  }
+  
+  /* Common color mixing rule for both circles and legend */
+  #map svg circle, .legend > div {
+    --color: color-mix(
+      in oklch,
+      var(--color-departures) calc(100% * var(--departure-ratio)),
+      var(--color-arrivals)
+    );
+  }
      
   #map {
     width: 100%;    /* Adjust width to your desired size */
@@ -25,7 +40,7 @@ body {
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Optional: subtle shadow for effect */
     border-radius: 8px; /* Optional: rounded corners */
   }
-
+  
   #station-markers {
     position: absolute;  /* Keeps the SVG on top */
     z-index: 1;          /* Ensures the SVG is above the map */
@@ -33,11 +48,12 @@ body {
     height: 100%;
     pointer-events: none; /* Ensures zooming & panning still work */
   }
-
+  
   #map svg circle {
     pointer-events: auto; /* Ensure interactivity */
+    fill: var(--color);
   }
-
+  
   header {
     display: flex;
     gap: 1em;
@@ -62,4 +78,44 @@ body {
     font-style: italic;
   }
   
+  /* Legend for traffic flow - Design 1: Blocks */
+  .legend {
+    display: flex;
+    justify-content: center;
+    gap: 1px;
+    margin-block: 1em;
+    background: white;
+    border-radius: 4px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+    font-size: 0.85em;
+    z-index: 10;
+  }
+  
+  .legend > div {
+    flex: 1;
+    padding: 0.5em 1.5em;
+    background-color: var(--color);
+    color: white;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  }
+  
+  /* Text alignment for each state */
+  .legend > div:nth-child(1) {
+    text-align: left;
+    border-radius: 4px 0 0 4px;
+  }
+  
+  .legend > div:nth-child(2) {
+    text-align: center;
+  }
+  
+  .legend > div:nth-child(3) {
+    text-align: right;
+    border-radius: 0 4px 4px 0;
+  }
+  
+  /* Adjust text color for better readability */
+  .legend > div[style="--departure-ratio: 0.5"] {
+    color: white;
+  }
   
