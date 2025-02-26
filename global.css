@@ -33,4 +33,33 @@ body {
     height: 100%;
     pointer-events: none; /* Ensures zooming & panning still work */
   }
+
+  #map svg circle {
+    pointer-events: auto; /* Ensure interactivity */
+  }
+
+  header {
+    display: flex;
+    gap: 1em;
+    align-items: baseline;
+  }
+  
+  label {
+    margin-left: auto; /* Pushes label to the right */
+  }
+  
+  #time-slider {
+    width: 200px; /* Adjust width as needed */
+  }
+  
+  time, #any-time {
+    display: block; /* Prevents UI shifting when time changes */
+    margin-top: 5px;
+  }
+  
+  #any-time {
+    color: gray;
+    font-style: italic;
+  }
+  
   
