@@ -25,3 +25,12 @@ body {
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Optional: subtle shadow for effect */
     border-radius: 8px; /* Optional: rounded corners */
   }
+
+  #station-markers {
+    position: absolute;  /* Keeps the SVG on top */
+    z-index: 1;          /* Ensures the SVG is above the map */
+    width: 100%;         /* Makes SVG fill the entire map */
+    height: 100%;
+    pointer-events: none; /* Ensures zooming & panning still work */
+  }
+  
